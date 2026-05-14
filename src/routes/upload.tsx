@@ -581,7 +581,7 @@ function UploadPage() {
                   <Stat label="Duplicates" value={result.duplicates.toLocaleString()} tone="warning" />
                   <Stat label="Failed" value={result.failed.toLocaleString()} tone="destructive" />
                   <Stat label="Time" value={fmtMs(result.elapsedMs)} tone="muted" />
-                  <Stat label="Speed" value={`${Math.round(result.rowsPerSec)}/s`} tone="muted" />
+                  <Stat label="Status" value={result.status} tone="muted" />
                 </div>
               </TabsContent>
               <TabsContent value="errors" className="mt-4">
