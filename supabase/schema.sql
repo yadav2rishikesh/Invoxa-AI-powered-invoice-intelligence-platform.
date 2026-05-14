@@ -174,3 +174,23 @@ end;
 $$;
 revoke all on function public.exec_readonly_sql(text) from public;
 grant execute on function public.exec_readonly_sql(text) to service_role;
+
+-- ============== Storage bucket for raw uploads ==============
+insert into storage.buckets (id, name, public)
+values ('invoice-uploads', 'invoice-uploads', false)
+on conflict (id) do nothing;
+
+-- Demo policies: anon may upload + read (tighten in production).
+do $$ begin
+  create policy "anon upload invoice files"
+    on storage.objects for insert
+    to anon, authenticated
+    with check (bucket_id = 'invoice-uploads');
+exception when duplicate_object then null; end $$;
+
+do $$ begin
+  create policy "anon read invoice files"
+    on storage.objects for select
+    to anon, authenticated
+    using (bucket_id = 'invoice-uploads');
+exception when duplicate_object then null; end $$;
