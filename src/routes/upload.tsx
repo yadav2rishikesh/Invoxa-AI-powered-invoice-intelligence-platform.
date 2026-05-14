@@ -758,8 +758,9 @@ function ErrorGroups({
   const groups = useMemo(() => {
     const m = new Map<string, UploadResult["errors"]>();
     for (const e of errors) {
-      if (!m.has(e.errorType)) m.set(e.errorType, []);
-      m.get(e.errorType)!.push(e);
+      const t = e.error_type ?? "unknown";
+      if (!m.has(t)) m.set(t, []);
+      m.get(t)!.push(e);
     }
     return Array.from(m.entries());
   }, [errors]);
