@@ -155,26 +155,132 @@ function UploadPage() {
     if (!file || !invoiceType) return;
     setUploading(true);
     setProgress(null);
-    abortRef.current = new AbortController();
+
+    const startedAt = Date.now();
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+
     try {
-      const res = await processUpload({
-        file, invoiceType, mapping,
-        onProgress: setProgress,
-        signal: abortRef.current.signal,
+      // 1. Upload file to Storage bucket "invoice-uploads".
+      const ext = (file.name.split(".").pop() ?? "").toLowerCase();
+      const fileType = ext === "xls" ? "xls" : ext === "xlsx" ? "xlsx" : "csv";
+      const storagePath = `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
+      const { error: upErr } = await supabase.storage
+        .from("invoice-uploads")
+        .upload(storagePath, file, { contentType: file.type || undefined, upsert: false });
+      if (upErr) throw new Error(`Storage upload failed: ${upErr.message}`);
+
+      // 2. Insert batch row.
+      const { data: batch, error: batchErr } = await supabase
+        .from("upload_batches")
+        .insert({
+          filename: file.name,
+          invoice_type: invoiceType,
+          status: "uploading",
+          total_rows: 0,
+        })
+        .select("id")
+        .single();
+      if (batchErr || !batch) throw new Error(`Batch create failed: ${batchErr?.message}`);
+      const batchId = batch.id as string;
+
+      // Persist mapping memory (fire & forget).
+      rememberMappings(mapping, invoiceType).catch(() => {});
+
+      // 3. Subscribe to realtime updates BEFORE invoking, so we don't miss early ticks.
+      const finalProgress: { current: BatchProgress | null } = { current: null };
+      const done = new Promise<BatchProgress>((resolve) => {
+        channel = supabase
+          .channel(`batch:${batchId}`)
+          .on(
+            "postgres_changes",
+            {
+              event: "UPDATE",
+              schema: "public",
+              table: "upload_batches",
+              filter: `id=eq.${batchId}`,
+            },
+            (payload) => {
+              const r = payload.new as Record<string, unknown>;
+              const p: BatchProgress = {
+                total: Number(r.total_rows ?? 0),
+                processed: Number(r.processed ?? 0),
+                successful: Number(r.successful ?? r.imported ?? 0),
+                duplicates: Number(r.duplicates ?? 0),
+                failed: Number(r.failed ?? 0),
+                status: (r.status as BatchStatus) ?? "processing",
+              };
+              finalProgress.current = p;
+              setProgress({ ...p, elapsedMs: Date.now() - startedAt });
+              if (p.status === "completed" || p.status === "failed" || p.status === "partial") {
+                resolve(p);
+              }
+            },
+          )
+          .subscribe();
       });
-      setResult(res);
-      toast.success(`Imported ${res.imported.toLocaleString()} of ${res.total.toLocaleString()} rows`);
+
+      // 4. Build a signed URL the edge function can fetch.
+      const { data: signed, error: signErr } = await supabase.storage
+        .from("invoice-uploads")
+        .createSignedUrl(storagePath, 60 * 60);
+      if (signErr || !signed?.signedUrl) {
+        throw new Error(`Could not create signed URL: ${signErr?.message ?? "unknown"}`);
+      }
+
+      // 5. Invoke edge function.
+      const { error: fnErr } = await supabase.functions.invoke("process-invoice-batch", {
+        body: {
+          batch_id: batchId,
+          file_url: signed.signedUrl,
+          file_type: fileType,
+          invoice_type: invoiceType,
+          column_mapping: Object.fromEntries(
+            Object.entries(mapping).filter(([, v]) => !!v),
+          ),
+        },
+      });
+      if (fnErr) throw new Error(`Function failed: ${fnErr.message}`);
+
+      // 6. Wait for terminal status (with safety timeout fallback).
+      const final = await Promise.race([
+        done,
+        new Promise<BatchProgress>((_, reject) =>
+          setTimeout(() => reject(new Error("Timed out waiting for batch to finish")), 30 * 60_000),
+        ),
+      ]);
+
+      // 7. Fetch errors.
+      const { data: errors } = await supabase
+        .from("upload_errors")
+        .select("row_number,error_type,error,row_data")
+        .eq("batch_id", batchId)
+        .order("row_number", { ascending: true });
+
+      const r: UploadResult = {
+        batchId,
+        total: final.total,
+        imported: final.successful,
+        duplicates: final.duplicates,
+        failed: final.failed,
+        elapsedMs: Date.now() - startedAt,
+        status: final.status,
+        errors: (errors ?? []) as BatchError[],
+      };
+      setResult(r);
+      toast.success(`Imported ${r.imported.toLocaleString()} of ${r.total.toLocaleString()} rows`);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       toast.error(`Upload failed: ${msg}`);
     } finally {
+      if (channel) void supabase.removeChannel(channel);
       setUploading(false);
     }
   }
 
   function cancel() {
-    abortRef.current?.abort();
-    toast.message("Cancelling…");
+    // Server-side processing cannot be cancelled mid-flight; just stop watching.
+    setUploading(false);
+    toast.message("Stopped watching this batch. Server may still finish processing.");
   }
 
   function downloadErrorsCsv() {
@@ -183,7 +289,7 @@ function UploadPage() {
     const csv = [
       headers.join(","),
       ...result.errors.map((e) =>
-        [e.row, e.errorType, JSON.stringify(e.error), JSON.stringify(e.data)]
+        [e.row_number ?? "", e.error_type ?? "", JSON.stringify(e.error ?? ""), JSON.stringify(e.row_data ?? {})]
           .map((v) => `"${String(v).replace(/"/g, '""')}"`)
           .join(","),
       ),
@@ -194,6 +300,7 @@ function UploadPage() {
     a.href = url; a.download = `errors_${result.batchId}.csv`; a.click();
     URL.revokeObjectURL(url);
   }
+
 
   // ============ RENDER ============
   return (
