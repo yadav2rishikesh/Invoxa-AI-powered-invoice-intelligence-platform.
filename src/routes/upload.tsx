@@ -20,10 +20,42 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import {
-  parsePreview, smartDetect, processUpload, FIELDS,
+  parsePreview, smartDetect, rememberMappings, FIELDS,
   type FieldKey, type InvoiceType, type DetectedMapping,
-  type ProgressUpdate, type UploadResult, type ParseResult,
+  type ParseResult,
 } from "@/lib/invoice-upload";
+import { supabase } from "@/integrations/supabase/client";
+
+type BatchStatus = "pending" | "uploading" | "processing" | "completed" | "failed" | "partial";
+
+interface BatchProgress {
+  total: number;
+  processed: number;
+  successful: number;
+  duplicates: number;
+  failed: number;
+  status: BatchStatus;
+}
+
+interface BatchError {
+  row_number: number | null;
+  error_type: string | null;
+  error: string | null;
+  row_data: Record<string, unknown> | null;
+}
+
+interface UploadResult {
+  batchId: string;
+  total: number;
+  imported: number;
+  duplicates: number;
+  failed: number;
+  elapsedMs: number;
+  status: BatchStatus;
+  errors: BatchError[];
+}
+
+type ProgressUpdate = BatchProgress & { elapsedMs: number };
 
 export const Route = createFileRoute("/upload")({
   head: () => ({
