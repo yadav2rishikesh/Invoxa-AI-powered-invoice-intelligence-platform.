@@ -618,10 +618,9 @@ function UploadPage() {
         <CardContent className="flex items-start gap-3 p-4 text-sm text-muted-foreground">
           <Sparkles className="mt-0.5 h-4 w-4 shrink-0" />
           <div>
-            Processing runs in your browser and writes to Supabase in 500-row chunks with hash-based
-            deduplication. Run <code className="rounded bg-muted px-1">supabase/schema.sql</code> in
-            your Supabase SQL editor to enable invoice-type, suppliers, mapping memory, and progress
-            tracking.
+            Files are uploaded to the <code className="rounded bg-muted px-1">invoice-uploads</code> bucket
+            and processed by the <code className="rounded bg-muted px-1">process-invoice-batch</code> edge
+            function. Progress streams over Supabase Realtime.
           </div>
         </CardContent>
       </Card>
