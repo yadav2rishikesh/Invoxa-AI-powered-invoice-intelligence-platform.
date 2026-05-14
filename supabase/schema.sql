@@ -119,3 +119,58 @@ do $$ begin create policy "anon all" on public.upload_batches for all using (tru
 do $$ begin create policy "anon all" on public.invoices for all using (true) with check (true); exception when duplicate_object then null; end $$;
 do $$ begin create policy "anon all" on public.upload_errors for all using (true) with check (true); exception when duplicate_object then null; end $$;
 do $$ begin create policy "anon all" on public.column_mapping_history for all using (true) with check (true); exception when duplicate_object then null; end $$;
+
+-- ============== AI Chat ==============
+create table if not exists public.chat_sessions (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid,
+  title text,
+  messages jsonb default '[]'::jsonb,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+create table if not exists public.ai_query_logs (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid,
+  query text not null,
+  intent text,
+  generated_sql text,
+  result jsonb,
+  execution_time_ms int,
+  success boolean default false,
+  error_message text,
+  created_at timestamptz default now()
+);
+create index if not exists ai_query_logs_created_idx on public.ai_query_logs(created_at desc);
+
+alter table public.chat_sessions enable row level security;
+alter table public.ai_query_logs enable row level security;
+do $$ begin create policy "anon all" on public.chat_sessions for all using (true) with check (true); exception when duplicate_object then null; end $$;
+do $$ begin create policy "anon all" on public.ai_query_logs for all using (true) with check (true); exception when duplicate_object then null; end $$;
+
+-- ============== Read-only SQL executor (used by ai-financial-query edge function) ==============
+-- SECURITY DEFINER + read-only transaction. Whitelist what callers can do.
+create or replace function public.exec_readonly_sql(sql text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  result jsonb;
+begin
+  if sql !~* '^\s*select\b' then
+    raise exception 'Only SELECT statements are allowed';
+  end if;
+  if sql ~* '\b(insert|update|delete|drop|alter|truncate|grant|revoke|create|exec|execute|merge|call)\b' then
+    raise exception 'Forbidden keyword in SQL';
+  end if;
+  set local statement_timeout = '10s';
+  set local transaction_read_only = on;
+  execute format('select coalesce(jsonb_agg(t), ''[]''::jsonb) from (%s) t', sql) into result;
+  return result;
+end;
+$$;
+revoke all on function public.exec_readonly_sql(text) from public;
+grant execute on function public.exec_readonly_sql(text) to service_role;
