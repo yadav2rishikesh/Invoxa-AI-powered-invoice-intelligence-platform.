@@ -1,5 +1,14 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import { Upload, LayoutDashboard, MessageSquare } from "lucide-react";
+import {
+  Upload,
+  LayoutDashboard,
+  MessageSquare,
+  FileText,
+  Users,
+  Truck,
+  BarChart3,
+  Settings,
+} from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -13,9 +22,14 @@ import {
 } from "@/components/ui/sidebar";
 
 const items = [
-  { title: "Upload", url: "/upload", icon: Upload },
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
+  { title: "Upload", url: "/upload", icon: Upload },
+  { title: "Invoices", url: "/invoices", icon: FileText },
+  { title: "Customers", url: "/customers", icon: Users },
+  { title: "Suppliers", url: "/suppliers", icon: Truck },
   { title: "AI Chat", url: "/chat", icon: MessageSquare },
+  { title: "Reports", url: "/reports", icon: BarChart3 },
+  { title: "Settings", url: "/settings", icon: Settings },
 ];
 
 export function AppSidebar() {
