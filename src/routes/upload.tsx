@@ -790,7 +790,7 @@ function ErrorGroups({
               <TableBody>
                 {list.slice(0, 100).map((e, i) => (
                   <TableRow key={i}>
-                    <TableCell className="font-mono">{e.row}</TableCell>
+                    <TableCell className="font-mono">{e.row_number ?? "—"}</TableCell>
                     <TableCell className="text-destructive">{e.error}</TableCell>
                   </TableRow>
                 ))}
