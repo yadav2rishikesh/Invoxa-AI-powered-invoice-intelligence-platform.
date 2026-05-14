@@ -507,17 +507,14 @@ function UploadPage() {
                   <span className="font-medium">
                     Processing {progress.processed.toLocaleString()} / {progress.total.toLocaleString()}
                   </span>
-                  <span className="text-muted-foreground">
-                    {Math.round(progress.rowsPerSec)} rows/s
-                  </span>
+                  <span className="text-muted-foreground capitalize">{progress.status}</span>
                 </div>
                 <Progress value={(progress.processed / Math.max(progress.total, 1)) * 100} />
-                <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-5">
-                  <Stat tone="success" label="Imported" value={progress.imported} />
+                <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
+                  <Stat tone="success" label="Imported" value={progress.successful} />
                   <Stat tone="warning" label="Duplicates" value={progress.duplicates} />
                   <Stat tone="destructive" label="Failed" value={progress.failed} />
                   <Stat tone="muted" label="Elapsed" value={fmtMs(progress.elapsedMs)} />
-                  <Stat tone="muted" label="ETA" value={fmtMs(progress.etaMs)} />
                 </div>
               </div>
             )}
