@@ -1,8 +1,9 @@
-import { Link, useRouterState } from "@tanstack/react-router";
-import { Upload, LayoutDashboard, MessageSquare } from "lucide-react";
+import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
+import { Upload, LayoutDashboard, MessageSquare, LogOut } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
+  SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
   SidebarGroupLabel,
@@ -11,15 +12,19 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
+import { useAuth } from "@/lib/auth-context";
+import { Button } from "@/components/ui/button";
 
 const items = [
-  { title: "Dashboard", url: "/", icon: LayoutDashboard },
+  { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
   { title: "Upload", url: "/upload", icon: Upload },
   { title: "AI Chat", url: "/chat", icon: MessageSquare },
 ];
 
 export function AppSidebar() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const { user, signOut } = useAuth();
+  const navigate = useNavigate();
 
   return (
     <Sidebar collapsible="icon">
@@ -45,6 +50,25 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
+      {user && (
+        <SidebarFooter className="border-t p-3">
+          <div className="text-xs text-muted-foreground truncate mb-2" title={user.email ?? ""}>
+            {user.email}
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-full justify-start gap-2"
+            onClick={async () => {
+              await signOut();
+              navigate({ to: "/login" });
+            }}
+          >
+            <LogOut className="h-4 w-4" />
+            <span>Sign out</span>
+          </Button>
+        </SidebarFooter>
+      )}
     </Sidebar>
   );
 }
