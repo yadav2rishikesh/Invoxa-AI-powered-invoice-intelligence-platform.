@@ -1,4 +1,4 @@
-# Finance Intelligence Platform
+# Invoxa – AI-powered invoice intelligence platform.
 
 > Production-grade finance application for bulk invoice processing and AI-powered financial querying. Built with React, Supabase, and Anthropic Claude.
 
