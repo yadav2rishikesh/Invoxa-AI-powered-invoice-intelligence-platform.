@@ -4,12 +4,19 @@ import {
   Link,
   createRootRouteWithContext,
   useRouter,
+  useRouterState,
+  useNavigate,
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
+import { useEffect } from "react";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { Toaster } from "@/components/ui/sonner";
+import { AuthProvider, useAuth } from "@/lib/auth-context";
+
+const PROTECTED = ["/dashboard", "/upload", "/chat"];
+const AUTH_ROUTES = ["/login", "/signup"];
 
 import appCss from "../styles.css?url";
 
@@ -115,25 +122,58 @@ function RootShell({ children }: { children: React.ReactNode }) {
   );
 }
 
+function AppShell() {
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const { user, loading } = useAuth();
+  const navigate = useNavigate();
+
+  const isAuthRoute = AUTH_ROUTES.includes(pathname);
+  const isProtected = PROTECTED.some((p) => pathname === p || pathname.startsWith(p + "/"));
+
+  useEffect(() => {
+    if (loading) return;
+    if (isProtected && !user) navigate({ to: "/login" });
+    if (isAuthRoute && user) navigate({ to: "/dashboard" });
+  }, [loading, user, isProtected, isAuthRoute, navigate]);
+
+  if (isAuthRoute) {
+    return (
+      <div className="min-h-screen w-full">
+        <Outlet />
+      </div>
+    );
+  }
+
+  if (isProtected && (loading || !user)) {
+    return <div className="flex min-h-screen items-center justify-center text-sm text-muted-foreground">Loading…</div>;
+  }
+
+  return (
+    <SidebarProvider>
+      <div className="flex min-h-screen w-full">
+        <AppSidebar />
+        <div className="flex flex-1 flex-col">
+          <header className="flex h-12 items-center border-b px-2">
+            <SidebarTrigger />
+          </header>
+          <main className="flex-1">
+            <Outlet />
+          </main>
+        </div>
+      </div>
+    </SidebarProvider>
+  );
+}
+
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
 
   return (
     <QueryClientProvider client={queryClient}>
-      <SidebarProvider>
-        <div className="flex min-h-screen w-full">
-          <AppSidebar />
-          <div className="flex flex-1 flex-col">
-            <header className="flex h-12 items-center border-b px-2">
-              <SidebarTrigger />
-            </header>
-            <main className="flex-1">
-              <Outlet />
-            </main>
-          </div>
-        </div>
-      </SidebarProvider>
-      <Toaster />
+      <AuthProvider>
+        <AppShell />
+        <Toaster />
+      </AuthProvider>
     </QueryClientProvider>
   );
 }
