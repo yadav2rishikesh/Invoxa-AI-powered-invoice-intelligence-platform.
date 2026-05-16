@@ -15,17 +15,22 @@ const STALE = 5 * 60 * 1000;
 
 const isoDate = (d: Date) => d.toISOString().slice(0, 10);
 
-/** Sum invoices in a range filtered by type. Falls back to 0 if table missing. */
+/** Sum invoices using DB-side aggregation (handles 100k+ rows correctly) */
 async function sumInvoices(type: "sales" | "purchase", range: DateRange) {
-  const { data, error } = await supabase
-    .from("invoices")
-    .select("total_amount")
-    .eq("invoice_type", type)
-    .gte("invoice_date", isoDate(range.from))
-    .lte("invoice_date", isoDate(range.to));
-  if (error) return { total: 0, count: 0, missing: true };
-  const total = (data ?? []).reduce((s, r: any) => s + Number(r.total_amount ?? 0), 0);
-  return { total, count: data?.length ?? 0, missing: false };
+  const { data, error } = await supabase.rpc("sum_invoices_by_type", {
+    p_type: type,
+    p_from: isoDate(range.from),
+    p_to: isoDate(range.to),
+  });
+  if (error) {
+    console.error("sumInvoices RPC error:", error);
+    return { total: 0, count: 0, missing: true };
+  }
+  return {
+    total: Number(data?.[0]?.total ?? 0),
+    count: Number(data?.[0]?.count ?? 0),
+    missing: false,
+  };
 }
 
 export function useDashboardStats(range: DateRange) {
@@ -96,24 +101,30 @@ export function useMonthlyChart(range: DateRange) {
     staleTime: STALE,
     queryFn: async () => {
       const months = eachMonthOfInterval({ start: range.from, end: range.to });
-      const { data, error } = await supabase
-        .from("invoices")
-        .select("invoice_date, total_amount, invoice_type")
-        .gte("invoice_date", isoDate(startOfMonth(range.from)))
-        .lte("invoice_date", isoDate(endOfMonth(range.to)));
+
+      // Use DB aggregation instead of fetching all rows
+      const { data, error } = await supabase.rpc("monthly_invoice_summary", {
+        p_from: isoDate(startOfMonth(range.from)),
+        p_to: isoDate(endOfMonth(range.to)),
+      });
 
       const buckets = new Map(
-        months.map((m) => [format(m, "yyyy-MM"), { month: format(m, "MMM yy"), sales: 0, purchases: 0 }]),
+        months.map((m) => [
+          format(m, "yyyy-MM"),
+          { month: format(m, "MMM yy"), sales: 0, purchases: 0 },
+        ]),
       );
+
       if (!error && data) {
         for (const r of data as any[]) {
-          const key = String(r.invoice_date).slice(0, 7);
+          const key = String(r.month).slice(0, 7);
           const b = buckets.get(key);
           if (!b) continue;
-          if (r.invoice_type === "sales") b.sales += Number(r.total_amount ?? 0);
-          else if (r.invoice_type === "purchase") b.purchases += Number(r.total_amount ?? 0);
+          if (r.invoice_type === "sales") b.sales = Number(r.total ?? 0);
+          else if (r.invoice_type === "purchase") b.purchases = Number(r.total ?? 0);
         }
       }
+
       return Array.from(buckets.values());
     },
   });
@@ -182,7 +193,9 @@ export function useRecentInvoices(limit = 10) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("invoices")
-        .select("id, invoice_number, invoice_date, total_amount, status, invoice_type, customers(name), suppliers(name)")
+        .select(
+          "id, invoice_number, invoice_date, total_amount, status, invoice_type, customers(name), suppliers(name)",
+        )
         .order("created_at", { ascending: false })
         .limit(limit);
       if (error) return [];
@@ -228,7 +241,10 @@ export function useInvoiceStatusDistribution() {
     queryKey: ["invoice-status-dist"],
     staleTime: STALE,
     queryFn: async () => {
-      const { data, error } = await supabase.from("invoices").select("status, total_amount").limit(5000);
+      const { data, error } = await supabase
+        .from("invoices")
+        .select("status, total_amount")
+        .limit(5000);
       if (error || !data) return [];
       const m = new Map<string, { name: string; count: number; amount: number }>();
       for (const r of data as any[]) {
@@ -269,25 +285,26 @@ export function useQuickStats() {
     queryKey: ["quick-stats"],
     staleTime: STALE,
     queryFn: async () => {
-      const [inv, cust, sup, pending] = await Promise.all([
-        supabase.from("invoices").select("total_amount", { count: "exact" }).limit(5000),
+      const [inv, cust, sup, pendingAmt] = await Promise.all([
+        supabase.from("invoices").select("id", { count: "exact", head: true }),
         supabase.from("customers").select("id", { count: "exact", head: true }),
         supabase.from("suppliers").select("id", { count: "exact", head: true }),
-        supabase
-          .from("invoices")
-          .select("total_amount")
-          .in("status", ["sent", "partial", "overdue"])
-          .limit(5000),
+        supabase.rpc("sum_invoices_by_status", {
+          p_statuses: ["sent", "partial", "overdue"],
+        }),
       ]);
+
       const totalInvoices = inv.count ?? 0;
-      const totalAmt = (inv.data ?? []).reduce((s: number, r: any) => s + Number(r.total_amount ?? 0), 0);
-      const pendingAmt = (pending.data ?? []).reduce((s: number, r: any) => s + Number(r.total_amount ?? 0), 0);
+
+      // Get avg from DB too
+      const { data: avgData } = await supabase.rpc("avg_invoice_amount");
+
       return {
         totalInvoices,
         totalCustomers: cust.count ?? 0,
         totalSuppliers: sup.count ?? 0,
-        avgInvoice: totalInvoices ? totalAmt / totalInvoices : 0,
-        pendingAmount: pendingAmt,
+        avgInvoice: Number(avgData ?? 0),
+        pendingAmount: Number(pendingAmt.data?.[0]?.total ?? 0),
       };
     },
   });
