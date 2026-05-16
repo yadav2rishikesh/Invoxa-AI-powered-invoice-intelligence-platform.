@@ -1,6 +1,36 @@
 import Papa from "papaparse";
-import * as XLSX from "xlsx";
+import ExcelJS from "exceljs";
 import { supabase } from "@/integrations/supabase/client";
+
+async function readXlsx(file: File, limit?: number): Promise<{ columns: string[]; rows: Record<string, unknown>[]; totalRows: number }> {
+  const buf = await file.arrayBuffer();
+  const wb = new ExcelJS.Workbook();
+  await wb.xlsx.load(buf);
+  const sheet = wb.worksheets[0];
+  if (!sheet) return { columns: [], rows: [], totalRows: 0 };
+  const headerRow = sheet.getRow(1);
+  const columns: string[] = [];
+  headerRow.eachCell({ includeEmpty: false }, (cell) => {
+    columns.push(String(cell.value ?? "").trim());
+  });
+  const rows: Record<string, unknown>[] = [];
+  const total = Math.max(0, sheet.rowCount - 1);
+  const max = limit ? Math.min(limit + 1, sheet.rowCount) : sheet.rowCount;
+  for (let r = 2; r <= max; r++) {
+    const row = sheet.getRow(r);
+    const obj: Record<string, unknown> = {};
+    columns.forEach((col, i) => {
+      const v = row.getCell(i + 1).value;
+      obj[col] = v && typeof v === "object" && "text" in (v as object)
+        ? (v as { text: string }).text
+        : v instanceof Date
+        ? v
+        : v ?? "";
+    });
+    rows.push(obj);
+  }
+  return { columns, rows, totalRows: total };
+}
 
 export type InvoiceType = "sales" | "purchase";
 
@@ -208,12 +238,8 @@ export async function parsePreview(file: File, previewRows = 10): Promise<ParseR
       });
     });
   }
-  const buf = await file.arrayBuffer();
-  const wb = XLSX.read(buf, { type: "array", cellDates: true });
-  const sheet = wb.Sheets[wb.SheetNames[0]];
-  const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: "" });
-  const columns = rows.length ? Object.keys(rows[0]) : [];
-  return { columns, rows: rows.slice(0, previewRows), totalRows: rows.length, previewOnly: true };
+  const { columns, rows, totalRows } = await readXlsx(file, previewRows);
+  return { columns, rows, totalRows, previewOnly: true };
 }
 
 export async function parseAll(file: File): Promise<ParseResult> {
@@ -231,12 +257,7 @@ export async function parseAll(file: File): Promise<ParseResult> {
       });
     });
   }
-  const buf = await file.arrayBuffer();
-  const wb = XLSX.read(buf, { type: "array", cellDates: true });
-  const sheet = wb.Sheets[wb.SheetNames[0]];
-  const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: "" });
-  const columns = rows.length ? Object.keys(rows[0]) : [];
-  return { columns, rows, totalRows: rows.length };
+  return readXlsx(file);
 }
 
 // ============== Normalization ==============
