@@ -233,6 +233,30 @@ export function Dashboard() {
         </div>
       </div>
 
+      {/* EMPTY STATE HINT */}
+      {!stats.isLoading &&
+        (stats.data?.sales ?? 0) === 0 &&
+        (stats.data?.purchases ?? 0) === 0 && (
+          <Card className="border-dashed">
+            <CardContent className="flex flex-col items-start gap-2 p-5 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-sm font-medium">No invoices in this period</p>
+                <p className="text-xs text-muted-foreground">
+                  Try a wider date range, or upload invoices to get started.
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={() => setPreset("last_fy")}>
+                  Try Last FY
+                </Button>
+                <Button asChild size="sm">
+                  <Link to="/upload">Upload invoices</Link>
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
       {/* KPIs */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <KpiCard
