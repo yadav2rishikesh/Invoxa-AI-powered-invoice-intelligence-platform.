@@ -20,7 +20,7 @@ export type DateRangePreset =
   | "this_month"
   | "this_quarter"
   | "this_year"
-  | "last_fy";
+  | "all_time";
 
 export interface DateRange {
   from: Date;
