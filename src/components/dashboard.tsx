@@ -73,7 +73,7 @@ const PRESETS: { value: DateRangePreset; label: string }[] = [
   { value: "this_month", label: "This Month" },
   { value: "this_quarter", label: "This Quarter" },
   { value: "this_year", label: "This Year" },
-  { value: "last_fy", label: "Last FY (2023–24)" },
+  { value: "all_time", label: "All Time" },
 ];
 
 const STATUS_COLORS: Record<string, string> = {
