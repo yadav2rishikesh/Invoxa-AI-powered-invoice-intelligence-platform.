@@ -1,7 +1,7 @@
 // Supabase Edge Function: ai-financial-query
 // Deploy: supabase functions deploy ai-financial-query
 // Required secrets in Supabase dashboard:
-//   - DEEPSEEK_API_KEY
+//   - ANTROPIC_API_KEY
 //   - SUPABASE_URL (auto)
 //   - SUPABASE_SERVICE_ROLE_KEY (auto)
 
