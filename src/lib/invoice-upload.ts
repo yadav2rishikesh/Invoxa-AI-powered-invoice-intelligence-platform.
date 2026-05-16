@@ -238,12 +238,8 @@ export async function parsePreview(file: File, previewRows = 10): Promise<ParseR
       });
     });
   }
-  const buf = await file.arrayBuffer();
-  const wb = XLSX.read(buf, { type: "array", cellDates: true });
-  const sheet = wb.Sheets[wb.SheetNames[0]];
-  const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: "" });
-  const columns = rows.length ? Object.keys(rows[0]) : [];
-  return { columns, rows: rows.slice(0, previewRows), totalRows: rows.length, previewOnly: true };
+  const { columns, rows, totalRows } = await readXlsx(file, previewRows);
+  return { columns, rows, totalRows, previewOnly: true };
 }
 
 export async function parseAll(file: File): Promise<ParseResult> {
