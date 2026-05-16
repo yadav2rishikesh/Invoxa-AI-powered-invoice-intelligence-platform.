@@ -287,6 +287,7 @@ export function Dashboard() {
           spark={profitSpark}
           loading={stats.isLoading}
           color="hsl(217 91% 60%)"
+          href="/invoices"
         />
         <KpiCard
           label="Pending Invoices"
