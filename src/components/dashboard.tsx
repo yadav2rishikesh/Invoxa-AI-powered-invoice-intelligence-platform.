@@ -175,7 +175,7 @@ function KpiCard({ label, value, current, previous, spark, loading, color, href 
 }
 
 export function Dashboard() {
-  const [preset, setPreset] = useState<DateRangePreset>("this_year");
+  const [preset, setPreset] = useState<DateRangePreset>("last_fy");
   const [compare, setCompare] = useState(true);
   const range = useMemo(() => getDateRange(preset), [preset]);
 
