@@ -75,37 +75,38 @@ const INTENT_TYPES = [
 ] as const;
 type Intent = (typeof INTENT_TYPES)[number];
 
-interface AnthropicResponse {
-  content: Array<{ type: string; text: string }>;
+interface DeepseekResponse {
+  choices: Array<{ message: { content: string } }>;
 }
 
-async function callClaude(
+async function callLLM(
   apiKey: string,
   systemPrompt: string,
   userMessage: string,
   maxTokens = 1000,
 ): Promise<string> {
-  const res = await fetch(ANTHROPIC_URL, {
+  const res = await fetch(DEEPSEEK_URL, {
     method: "POST",
     headers: {
-      "x-api-key": apiKey,
-      "anthropic-version": "2023-06-01",
-      "content-type": "application/json",
+      "Authorization": `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
     },
     body: JSON.stringify({
       model: MODEL,
       max_tokens: maxTokens,
       temperature: 0.1,
-      system: systemPrompt,
-      messages: [{ role: "user", content: userMessage }],
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userMessage },
+      ],
     }),
   });
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(`Anthropic API ${res.status}: ${text}`);
+    throw new Error(`DeepSeek API ${res.status}: ${text}`);
   }
-  const data = (await res.json()) as AnthropicResponse;
-  return data.content?.[0]?.text?.trim() ?? "";
+  const data = (await res.json()) as DeepseekResponse;
+  return data.choices?.[0]?.message?.content?.trim() ?? "";
 }
 
 async function classifyIntent(apiKey: string, query: string): Promise<Intent> {
