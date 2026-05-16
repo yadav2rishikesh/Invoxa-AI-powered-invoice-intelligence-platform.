@@ -1,7 +1,7 @@
 // Supabase Edge Function: ai-financial-query
 // Deploy: supabase functions deploy ai-financial-query
 // Required secrets in Supabase dashboard:
-//   - ANTHROPIC_API_KEY
+//   - DEEPSEEK_API_KEY
 //   - SUPABASE_URL (auto)
 //   - SUPABASE_SERVICE_ROLE_KEY (auto)
 
@@ -15,8 +15,8 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
-const MODEL = "claude-sonnet-4-20250514";
+const DEEPSEEK_URL = "https://api.deepseek.com/v1/chat/completions";
+const MODEL = "deepseek-chat";
 
 const SCHEMA_CONTEXT = `DATABASE SCHEMA:
 - customers (id, name, gstin, email, phone, state, created_at)
