@@ -297,6 +297,7 @@ export function Dashboard() {
           spark={sparkPending.data}
           loading={stats.isLoading}
           color="hsl(38 92% 50%)"
+          href="/invoices"
         />
       </div>
 
