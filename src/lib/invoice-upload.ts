@@ -257,12 +257,7 @@ export async function parseAll(file: File): Promise<ParseResult> {
       });
     });
   }
-  const buf = await file.arrayBuffer();
-  const wb = XLSX.read(buf, { type: "array", cellDates: true });
-  const sheet = wb.Sheets[wb.SheetNames[0]];
-  const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: "" });
-  const columns = rows.length ? Object.keys(rows[0]) : [];
-  return { columns, rows, totalRows: rows.length };
+  return readXlsx(file);
 }
 
 // ============== Normalization ==============
