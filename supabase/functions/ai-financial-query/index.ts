@@ -1,7 +1,7 @@
 // Supabase Edge Function: ai-financial-query
 // Deploy: supabase functions deploy ai-financial-query
 // Required secrets in Supabase dashboard:
-//   - ANTROPIC_API_KEY
+//   - ANTHROPIC_API_KEY          ← changed from DEEPSEEK_API_KEY
 //   - SUPABASE_URL (auto)
 //   - SUPABASE_SERVICE_ROLE_KEY (auto)
 
@@ -15,8 +15,11 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-const DEEPSEEK_URL = "https://api.deepseek.com/v1/chat/completions";
-const MODEL = "deepseek-chat";
+// ─── Anthropic config  ───────────
+const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
+const ANTHROPIC_VERSION = "2023-06-01";
+const MODEL = "claude-sonnet-4-20250514"; 
+// ────────────────────────────────────────────────────────────────────────────
 
 const SCHEMA_CONTEXT = `DATABASE SCHEMA:
 - customers (id, name, gstin, email, phone, state, created_at)
@@ -75,39 +78,49 @@ const INTENT_TYPES = [
 ] as const;
 type Intent = (typeof INTENT_TYPES)[number];
 
-interface DeepseekResponse {
-  choices: Array<{ message: { content: string } }>;
+// ─── Anthropic response type  ─────────────────
+interface AnthropicResponse {
+  content: Array<{ type: string; text: string }>;
 }
+// ────────────────────────────────────────────────────────────────────────────
 
+// ─── Single function that changed: callLLM now calls Anthropic ───────────
 async function callLLM(
   apiKey: string,
   systemPrompt: string,
   userMessage: string,
   maxTokens = 1000,
 ): Promise<string> {
-  const res = await fetch(DEEPSEEK_URL, {
+  const res = await fetch(ANTHROPIC_URL, {
     method: "POST",
     headers: {
-      "Authorization": `Bearer ${apiKey}`,
+      "x-api-key": apiKey,                  // Anthropic uses x-api-key header
+      "anthropic-version": ANTHROPIC_VERSION,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
       model: MODEL,
       max_tokens: maxTokens,
-      temperature: 0.1,
+      temperature: 0.1,                     // low temp for deterministic SQL
+      system: systemPrompt,                 // Anthropic: system is a top-level field
       messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userMessage },
+        { role: "user", content: userMessage }, // Anthropic: no system role in messages[]
       ],
     }),
   });
+
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(`DeepSeek API ${res.status}: ${text}`);
+    throw new Error(`Anthropic API ${res.status}: ${text}`);
   }
-  const data = (await res.json()) as DeepseekResponse;
-  return data.choices?.[0]?.message?.content?.trim() ?? "";
+
+  const data = (await res.json()) as AnthropicResponse;
+  // Anthropic returns content[].text instead of choices[].message.content
+  return data.content?.[0]?.text?.trim() ?? "";
 }
+// ────────────────────────────────────────────────────────────────────────────
+
+// Everything below is IDENTICAL to the original — zero changes needed
 
 async function classifyIntent(apiKey: string, query: string): Promise<Intent> {
   const out = await callLLM(
@@ -122,7 +135,7 @@ async function classifyIntent(apiKey: string, query: string): Promise<Intent> {
 
 async function generateSQL(apiKey: string, query: string): Promise<string> {
   const raw = await callLLM(apiKey, SQL_SYSTEM_PROMPT, query, 800);
-  // strip markdown fences
+  // strip markdown fences if model wraps output in ```sql ... ```
   return raw
     .replace(/^```(?:sql)?\s*/i, "")
     .replace(/\s*```$/i, "")
@@ -165,10 +178,12 @@ function validateSQL(sql: string): { ok: boolean; reason?: string } {
   if (/\bauth\.[a-z_]+/i.test(trimmed)) {
     return { ok: false, reason: "Access to auth schema is forbidden" };
   }
-  if (!/\blimit\s+\d+/i.test(trimmed) && !/\b(sum|count|avg|min|max)\s*\(/i.test(trimmed)) {
+  if (
+    !/\blimit\s+\d+/i.test(trimmed) &&
+    !/\b(sum|count|avg|min|max)\s*\(/i.test(trimmed)
+  ) {
     return { ok: false, reason: "Query must include LIMIT or aggregation" };
   }
-  // hard cap
   const limitMatch = trimmed.match(/\blimit\s+(\d+)/i);
   if (limitMatch && parseInt(limitMatch[1], 10) > 1000) {
     return { ok: false, reason: "LIMIT cannot exceed 1000" };
@@ -181,8 +196,6 @@ async function executeSQL(
   serviceKey: string,
   sql: string,
 ): Promise<unknown[]> {
-  // Requires an `exec_readonly_sql(sql text)` RPC in your Supabase project
-  // that runs the query as a read-only transaction and returns JSON.
   const supabase = createClient(supabaseUrl, serviceKey);
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 10_000);
@@ -211,6 +224,7 @@ Reply in strict JSON: {"answer": "...", "suggested_follow_ups": ["...", "...", "
 - "answer" = one concise natural-language sentence using Indian number format (₹1,00,000 / ₹1.5L / ₹1.2Cr).
 - "suggested_follow_ups" = 3 short related questions the user might ask next.
 No prose outside the JSON.`;
+
   const raw = await callLLM(
     apiKey,
     "You are a finance analyst that summarizes query results in Indian rupees. Output strict JSON only.",
@@ -218,7 +232,9 @@ No prose outside the JSON.`;
     400,
   );
   try {
-    const cleaned = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "");
+    const cleaned = raw
+      .replace(/^```(?:json)?\s*/i, "")
+      .replace(/\s*```$/i, "");
     return JSON.parse(cleaned);
   } catch {
     return { answer: raw, suggested_follow_ups: [] };
@@ -233,7 +249,7 @@ serve(async (req) => {
   const startedAt = Date.now();
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-  const deepseekKey = Deno.env.get("DEEPSEEK_API_KEY");
+  const anthropicKey = Deno.env.get("ANTHROPIC_API_KEY"); // ← key name updated
 
   let query = "";
   let userId: string | null = null;
@@ -244,24 +260,24 @@ serve(async (req) => {
   let errorMessage: string | null = null;
 
   try {
-    if (!deepseekKey) throw new Error("DEEPSEEK_API_KEY not configured");
+    if (!anthropicKey) throw new Error("ANTHROPIC_API_KEY not configured");
     const body = await req.json();
     query = String(body?.query ?? "").trim();
     userId = body?.user_id ?? null;
     if (!query) throw new Error("query is required");
 
-    intent = await classifyIntent(deepseekKey, query);
-    sql = await generateSQL(deepseekKey, query);
+    intent = await classifyIntent(anthropicKey, query);
+    sql = await generateSQL(anthropicKey, query);
 
     const valid = validateSQL(sql);
     if (!valid.ok) throw new Error(`Could not generate safe query: ${valid.reason}`);
 
     result = await executeSQL(supabaseUrl, serviceKey, sql);
-    const formatted = await formatAnswer(deepseekKey, query, result);
+    const formatted = await formatAnswer(anthropicKey, query, result);
     success = true;
 
     const elapsed = Date.now() - startedAt;
-    // fire-and-forget log
+
     void createClient(supabaseUrl, serviceKey)
       .from("ai_query_logs")
       .insert({
