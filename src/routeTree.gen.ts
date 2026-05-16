@@ -14,6 +14,7 @@ import { Route as SignupRouteImport } from './routes/signup'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as InvoicesRouteImport } from './routes/invoices'
 import { Route as DashboardRouteImport } from './routes/dashboard'
+import { Route as CustomersRouteImport } from './routes/customers'
 import { Route as ChatRouteImport } from './routes/chat'
 import { Route as IndexRouteImport } from './routes/index'
 
@@ -42,6 +43,11 @@ const DashboardRoute = DashboardRouteImport.update({
   path: '/dashboard',
   getParentRoute: () => rootRouteImport,
 } as any)
+const CustomersRoute = CustomersRouteImport.update({
+  id: '/customers',
+  path: '/customers',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ChatRoute = ChatRouteImport.update({
   id: '/chat',
   path: '/chat',
@@ -56,6 +62,7 @@ const IndexRoute = IndexRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/chat': typeof ChatRoute
+  '/customers': typeof CustomersRoute
   '/dashboard': typeof DashboardRoute
   '/invoices': typeof InvoicesRoute
   '/login': typeof LoginRoute
@@ -65,6 +72,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/chat': typeof ChatRoute
+  '/customers': typeof CustomersRoute
   '/dashboard': typeof DashboardRoute
   '/invoices': typeof InvoicesRoute
   '/login': typeof LoginRoute
@@ -75,6 +83,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/chat': typeof ChatRoute
+  '/customers': typeof CustomersRoute
   '/dashboard': typeof DashboardRoute
   '/invoices': typeof InvoicesRoute
   '/login': typeof LoginRoute
@@ -86,6 +95,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/chat'
+    | '/customers'
     | '/dashboard'
     | '/invoices'
     | '/login'
@@ -95,6 +105,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/chat'
+    | '/customers'
     | '/dashboard'
     | '/invoices'
     | '/login'
@@ -104,6 +115,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/chat'
+    | '/customers'
     | '/dashboard'
     | '/invoices'
     | '/login'
@@ -114,6 +126,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ChatRoute: typeof ChatRoute
+  CustomersRoute: typeof CustomersRoute
   DashboardRoute: typeof DashboardRoute
   InvoicesRoute: typeof InvoicesRoute
   LoginRoute: typeof LoginRoute
@@ -158,6 +171,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/customers': {
+      id: '/customers'
+      path: '/customers'
+      fullPath: '/customers'
+      preLoaderRoute: typeof CustomersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/chat': {
       id: '/chat'
       path: '/chat'
@@ -178,6 +198,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ChatRoute: ChatRoute,
+  CustomersRoute: CustomersRoute,
   DashboardRoute: DashboardRoute,
   InvoicesRoute: InvoicesRoute,
   LoginRoute: LoginRoute,
