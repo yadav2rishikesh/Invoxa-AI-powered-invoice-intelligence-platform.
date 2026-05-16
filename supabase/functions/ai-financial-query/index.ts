@@ -1,7 +1,7 @@
 // Supabase Edge Function: ai-financial-query
 // Deploy: supabase functions deploy ai-financial-query
 // Required secrets in Supabase dashboard:
-//   - ANTHROPIC_API_KEY
+//   - DEEPSEEK_API_KEY
 //   - SUPABASE_URL (auto)
 //   - SUPABASE_SERVICE_ROLE_KEY (auto)
 
@@ -15,8 +15,8 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
-const MODEL = "claude-sonnet-4-20250514";
+const DEEPSEEK_URL = "https://api.deepseek.com/v1/chat/completions";
+const MODEL = "deepseek-chat";
 
 const SCHEMA_CONTEXT = `DATABASE SCHEMA:
 - customers (id, name, gstin, email, phone, state, created_at)
@@ -75,41 +75,42 @@ const INTENT_TYPES = [
 ] as const;
 type Intent = (typeof INTENT_TYPES)[number];
 
-interface AnthropicResponse {
-  content: Array<{ type: string; text: string }>;
+interface DeepseekResponse {
+  choices: Array<{ message: { content: string } }>;
 }
 
-async function callClaude(
+async function callLLM(
   apiKey: string,
   systemPrompt: string,
   userMessage: string,
   maxTokens = 1000,
 ): Promise<string> {
-  const res = await fetch(ANTHROPIC_URL, {
+  const res = await fetch(DEEPSEEK_URL, {
     method: "POST",
     headers: {
-      "x-api-key": apiKey,
-      "anthropic-version": "2023-06-01",
-      "content-type": "application/json",
+      "Authorization": `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
     },
     body: JSON.stringify({
       model: MODEL,
       max_tokens: maxTokens,
       temperature: 0.1,
-      system: systemPrompt,
-      messages: [{ role: "user", content: userMessage }],
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userMessage },
+      ],
     }),
   });
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(`Anthropic API ${res.status}: ${text}`);
+    throw new Error(`DeepSeek API ${res.status}: ${text}`);
   }
-  const data = (await res.json()) as AnthropicResponse;
-  return data.content?.[0]?.text?.trim() ?? "";
+  const data = (await res.json()) as DeepseekResponse;
+  return data.choices?.[0]?.message?.content?.trim() ?? "";
 }
 
 async function classifyIntent(apiKey: string, query: string): Promise<Intent> {
-  const out = await callClaude(
+  const out = await callLLM(
     apiKey,
     `Classify the user's finance query into ONE of: ${INTENT_TYPES.join(", ")}. Reply with just the label, nothing else.`,
     query,
@@ -120,7 +121,7 @@ async function classifyIntent(apiKey: string, query: string): Promise<Intent> {
 }
 
 async function generateSQL(apiKey: string, query: string): Promise<string> {
-  const raw = await callClaude(apiKey, SQL_SYSTEM_PROMPT, query, 800);
+  const raw = await callLLM(apiKey, SQL_SYSTEM_PROMPT, query, 800);
   // strip markdown fences
   return raw
     .replace(/^```(?:sql)?\s*/i, "")
@@ -210,7 +211,7 @@ Reply in strict JSON: {"answer": "...", "suggested_follow_ups": ["...", "...", "
 - "answer" = one concise natural-language sentence using Indian number format (₹1,00,000 / ₹1.5L / ₹1.2Cr).
 - "suggested_follow_ups" = 3 short related questions the user might ask next.
 No prose outside the JSON.`;
-  const raw = await callClaude(
+  const raw = await callLLM(
     apiKey,
     "You are a finance analyst that summarizes query results in Indian rupees. Output strict JSON only.",
     prompt,
@@ -232,7 +233,7 @@ serve(async (req) => {
   const startedAt = Date.now();
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-  const anthropicKey = Deno.env.get("ANTHROPIC_API_KEY");
+  const deepseekKey = Deno.env.get("DEEPSEEK_API_KEY");
 
   let query = "";
   let userId: string | null = null;
@@ -243,20 +244,20 @@ serve(async (req) => {
   let errorMessage: string | null = null;
 
   try {
-    if (!anthropicKey) throw new Error("ANTHROPIC_API_KEY not configured");
+    if (!deepseekKey) throw new Error("DEEPSEEK_API_KEY not configured");
     const body = await req.json();
     query = String(body?.query ?? "").trim();
     userId = body?.user_id ?? null;
     if (!query) throw new Error("query is required");
 
-    intent = await classifyIntent(anthropicKey, query);
-    sql = await generateSQL(anthropicKey, query);
+    intent = await classifyIntent(deepseekKey, query);
+    sql = await generateSQL(deepseekKey, query);
 
     const valid = validateSQL(sql);
     if (!valid.ok) throw new Error(`Could not generate safe query: ${valid.reason}`);
 
     result = await executeSQL(supabaseUrl, serviceKey, sql);
-    const formatted = await formatAnswer(anthropicKey, query, result);
+    const formatted = await formatAnswer(deepseekKey, query, result);
     success = true;
 
     const elapsed = Date.now() - startedAt;
