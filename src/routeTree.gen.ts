@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as UploadRouteImport } from './routes/upload'
 import { Route as SignupRouteImport } from './routes/signup'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as InvoicesRouteImport } from './routes/invoices'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as ChatRouteImport } from './routes/chat'
 import { Route as IndexRouteImport } from './routes/index'
@@ -29,6 +30,11 @@ const SignupRoute = SignupRouteImport.update({
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const InvoicesRoute = InvoicesRouteImport.update({
+  id: '/invoices',
+  path: '/invoices',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DashboardRoute = DashboardRouteImport.update({
@@ -51,6 +57,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/chat': typeof ChatRoute
   '/dashboard': typeof DashboardRoute
+  '/invoices': typeof InvoicesRoute
   '/login': typeof LoginRoute
   '/signup': typeof SignupRoute
   '/upload': typeof UploadRoute
@@ -59,6 +66,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/chat': typeof ChatRoute
   '/dashboard': typeof DashboardRoute
+  '/invoices': typeof InvoicesRoute
   '/login': typeof LoginRoute
   '/signup': typeof SignupRoute
   '/upload': typeof UploadRoute
@@ -68,20 +76,36 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/chat': typeof ChatRoute
   '/dashboard': typeof DashboardRoute
+  '/invoices': typeof InvoicesRoute
   '/login': typeof LoginRoute
   '/signup': typeof SignupRoute
   '/upload': typeof UploadRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/chat' | '/dashboard' | '/login' | '/signup' | '/upload'
+  fullPaths:
+    | '/'
+    | '/chat'
+    | '/dashboard'
+    | '/invoices'
+    | '/login'
+    | '/signup'
+    | '/upload'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/chat' | '/dashboard' | '/login' | '/signup' | '/upload'
+  to:
+    | '/'
+    | '/chat'
+    | '/dashboard'
+    | '/invoices'
+    | '/login'
+    | '/signup'
+    | '/upload'
   id:
     | '__root__'
     | '/'
     | '/chat'
     | '/dashboard'
+    | '/invoices'
     | '/login'
     | '/signup'
     | '/upload'
@@ -91,6 +115,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ChatRoute: typeof ChatRoute
   DashboardRoute: typeof DashboardRoute
+  InvoicesRoute: typeof InvoicesRoute
   LoginRoute: typeof LoginRoute
   SignupRoute: typeof SignupRoute
   UploadRoute: typeof UploadRoute
@@ -117,6 +142,13 @@ declare module '@tanstack/react-router' {
       path: '/login'
       fullPath: '/login'
       preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/invoices': {
+      id: '/invoices'
+      path: '/invoices'
+      fullPath: '/invoices'
+      preLoaderRoute: typeof InvoicesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/dashboard': {
@@ -147,6 +179,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ChatRoute: ChatRoute,
   DashboardRoute: DashboardRoute,
+  InvoicesRoute: InvoicesRoute,
   LoginRoute: LoginRoute,
   SignupRoute: SignupRoute,
   UploadRoute: UploadRoute,
