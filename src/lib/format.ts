@@ -35,9 +35,11 @@ export function getDateRange(preset: DateRangePreset): DateRange {
     case "this_year":
       return { from: startOfYear(now), to: endOfYear(now) };
     case "all_time":
-      // Indian FY: Apr 1 — Mar 31. Last FY = 2023-04-01 to 2024-03-31 (relative to "previous" FY).
-      const y = now.getMonth() < 3 ? now.getFullYear() - 2 : now.getFullYear() - 1;
       return { from: new Date(2020, 0, 1), to: endOfDay(now) };
+    case "last_fy": {
+      const fyStart = now.getMonth() < 3 ? now.getFullYear() - 1 : now.getFullYear();
+      return { from: new Date(fyStart - 1, 3, 1), to: new Date(fyStart, 2, 31, 23, 59, 59) };
+    }
   }
 }
 
