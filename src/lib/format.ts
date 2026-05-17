@@ -14,7 +14,7 @@ import {
   format,
 } from "date-fns";
 
-export type DateRangePreset = "today" | "this_week" | "this_month" | "this_quarter" | "this_year" | "all_time";
+export type DateRangePreset = "today" | "this_week" | "this_month" | "this_quarter" | "this_year" | "all_time" | "last_fy";
 
 export interface DateRange {
   from: Date;
