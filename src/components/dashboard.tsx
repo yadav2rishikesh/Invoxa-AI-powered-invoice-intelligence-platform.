@@ -267,7 +267,6 @@ export function Dashboard() {
           spark={sparkSales.data}
           loading={stats.isLoading}
           color="hsl(142 71% 45%)"
-          href="/invoices"
         />
         <KpiCard
           label="Total Purchases"
@@ -277,7 +276,6 @@ export function Dashboard() {
           spark={sparkPurch.data}
           loading={stats.isLoading}
           color="hsl(0 84% 60%)"
-          href="/invoices"
         />
         <KpiCard
           label="Net Profit"
@@ -287,7 +285,6 @@ export function Dashboard() {
           spark={profitSpark}
           loading={stats.isLoading}
           color="hsl(217 91% 60%)"
-          href="/invoices"
         />
         <KpiCard
           label="Pending Invoices"
@@ -297,7 +294,6 @@ export function Dashboard() {
           spark={sparkPending.data}
           loading={stats.isLoading}
           color="hsl(38 92% 50%)"
-          href="/invoices"
         />
       </div>
 
@@ -358,7 +354,6 @@ export function Dashboard() {
         <Card>
           <CardHeader className="flex-row items-center justify-between">
             <CardTitle className="text-base">Top Customers</CardTitle>
-            <Link to="/customers" className="text-xs text-primary hover:underline">View all</Link>
           </CardHeader>
           <CardContent>
             <RankedList loading={topCust.isLoading} items={topCust.data ?? []} emptyLabel="No customer data yet" />
@@ -367,7 +362,6 @@ export function Dashboard() {
         <Card>
           <CardHeader className="flex-row items-center justify-between">
             <CardTitle className="text-base">Top Suppliers</CardTitle>
-            <Link to="/suppliers" className="text-xs text-primary hover:underline">View all</Link>
           </CardHeader>
           <CardContent>
             <RankedList loading={topSup.isLoading} items={topSup.data ?? []} emptyLabel="No supplier data yet" />
