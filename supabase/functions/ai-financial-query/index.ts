@@ -77,45 +77,42 @@ const INTENT_TYPES = [
 ] as const;
 type Intent = (typeof INTENT_TYPES)[number];
 
-// ─── Anthropic response type  ─────────────────
-interface AnthropicResponse {
-  content: Array<{ type: string; text: string }>;
+interface GatewayResponse {
+  choices: Array<{ message: { content: string } }>;
 }
-// ────────────────────────────────────────────────────────────────────────────
 
-// ─── Single function that changed: callLLM now calls Anthropic ───────────
 async function callLLM(
   apiKey: string,
   systemPrompt: string,
   userMessage: string,
   maxTokens = 1000,
 ): Promise<string> {
-  const res = await fetch(ANTHROPIC_URL, {
+  const res = await fetch(AI_GATEWAY_URL, {
     method: "POST",
     headers: {
-      "x-api-key": apiKey,                  // Anthropic uses x-api-key header
-      "anthropic-version": ANTHROPIC_VERSION,
+      "Authorization": `Bearer ${apiKey}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
       model: MODEL,
       max_tokens: maxTokens,
-      temperature: 0.1,                     // low temp for deterministic SQL
-      system: systemPrompt,                 // Anthropic: system is a top-level field
+      temperature: 0.1,
       messages: [
-        { role: "user", content: userMessage }, // Anthropic: no system role in messages[]
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userMessage },
       ],
     }),
   });
 
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(`Anthropic API ${res.status}: ${text}`);
+    if (res.status === 429) throw new Error("Rate limit exceeded, please try again later.");
+    if (res.status === 402) throw new Error("AI credits exhausted. Please add credits in workspace settings.");
+    throw new Error(`AI Gateway ${res.status}: ${text}`);
   }
 
-  const data = (await res.json()) as AnthropicResponse;
-  // Anthropic returns content[].text instead of choices[].message.content
-  return data.content?.[0]?.text?.trim() ?? "";
+  const data = (await res.json()) as GatewayResponse;
+  return data.choices?.[0]?.message?.content?.trim() ?? "";
 }
 // ────────────────────────────────────────────────────────────────────────────
 
