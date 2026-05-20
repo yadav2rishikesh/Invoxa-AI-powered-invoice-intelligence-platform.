@@ -256,20 +256,20 @@ serve(async (req) => {
   let errorMessage: string | null = null;
 
   try {
-    if (!anthropicKey) throw new Error("ANTHROPIC_API_KEY not configured");
+    if (!lovableKey) throw new Error("LOVABLE_API_KEY not configured");
     const body = await req.json();
     query = String(body?.query ?? "").trim();
     userId = body?.user_id ?? null;
     if (!query) throw new Error("query is required");
 
-    intent = await classifyIntent(anthropicKey, query);
-    sql = await generateSQL(anthropicKey, query);
+    intent = await classifyIntent(lovableKey, query);
+    sql = await generateSQL(lovableKey, query);
 
     const valid = validateSQL(sql);
     if (!valid.ok) throw new Error(`Could not generate safe query: ${valid.reason}`);
 
     result = await executeSQL(supabaseUrl, serviceKey, sql);
-    const formatted = await formatAnswer(anthropicKey, query, result);
+    const formatted = await formatAnswer(lovableKey, query, result);
     success = true;
 
     const elapsed = Date.now() - startedAt;
