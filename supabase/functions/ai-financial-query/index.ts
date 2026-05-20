@@ -1,7 +1,7 @@
 // Supabase Edge Function: ai-financial-query
-// Deploy: supabase functions deploy ai-financial-query
+// Uses Lovable AI Gateway (LOVABLE_API_KEY auto-injected)
 // Required secrets in Supabase dashboard:
-//   - ANTHROPIC_API_KEY          ← changed from DEEPSEEK_API_KEY
+//   - LOVABLE_API_KEY (auto)
 //   - SUPABASE_URL (auto)
 //   - SUPABASE_SERVICE_ROLE_KEY (auto)
 
@@ -15,10 +15,9 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-// ─── Anthropic config  ───────────
-const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
-const ANTHROPIC_VERSION = "2023-06-01";
-const MODEL = "claude-sonnet-4-20250514"; 
+// ─── Lovable AI Gateway config ───────────
+const AI_GATEWAY_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
+const MODEL = "google/gemini-3-flash-preview";
 // ────────────────────────────────────────────────────────────────────────────
 
 const SCHEMA_CONTEXT = `DATABASE SCHEMA:
@@ -78,45 +77,42 @@ const INTENT_TYPES = [
 ] as const;
 type Intent = (typeof INTENT_TYPES)[number];
 
-// ─── Anthropic response type  ─────────────────
-interface AnthropicResponse {
-  content: Array<{ type: string; text: string }>;
+interface GatewayResponse {
+  choices: Array<{ message: { content: string } }>;
 }
-// ────────────────────────────────────────────────────────────────────────────
 
-// ─── Single function that changed: callLLM now calls Anthropic ───────────
 async function callLLM(
   apiKey: string,
   systemPrompt: string,
   userMessage: string,
   maxTokens = 1000,
 ): Promise<string> {
-  const res = await fetch(ANTHROPIC_URL, {
+  const res = await fetch(AI_GATEWAY_URL, {
     method: "POST",
     headers: {
-      "x-api-key": apiKey,                  // Anthropic uses x-api-key header
-      "anthropic-version": ANTHROPIC_VERSION,
+      "Authorization": `Bearer ${apiKey}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
       model: MODEL,
       max_tokens: maxTokens,
-      temperature: 0.1,                     // low temp for deterministic SQL
-      system: systemPrompt,                 // Anthropic: system is a top-level field
+      temperature: 0.1,
       messages: [
-        { role: "user", content: userMessage }, // Anthropic: no system role in messages[]
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userMessage },
       ],
     }),
   });
 
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(`Anthropic API ${res.status}: ${text}`);
+    if (res.status === 429) throw new Error("Rate limit exceeded, please try again later.");
+    if (res.status === 402) throw new Error("AI credits exhausted. Please add credits in workspace settings.");
+    throw new Error(`AI Gateway ${res.status}: ${text}`);
   }
 
-  const data = (await res.json()) as AnthropicResponse;
-  // Anthropic returns content[].text instead of choices[].message.content
-  return data.content?.[0]?.text?.trim() ?? "";
+  const data = (await res.json()) as GatewayResponse;
+  return data.choices?.[0]?.message?.content?.trim() ?? "";
 }
 // ────────────────────────────────────────────────────────────────────────────
 
@@ -249,7 +245,7 @@ serve(async (req) => {
   const startedAt = Date.now();
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-  const anthropicKey = Deno.env.get("ANTHROPIC_API_KEY"); // ← key name updated
+  const lovableKey = Deno.env.get("LOVABLE_API_KEY");
 
   let query = "";
   let userId: string | null = null;
@@ -260,20 +256,20 @@ serve(async (req) => {
   let errorMessage: string | null = null;
 
   try {
-    if (!anthropicKey) throw new Error("ANTHROPIC_API_KEY not configured");
+    if (!lovableKey) throw new Error("LOVABLE_API_KEY not configured");
     const body = await req.json();
     query = String(body?.query ?? "").trim();
     userId = body?.user_id ?? null;
     if (!query) throw new Error("query is required");
 
-    intent = await classifyIntent(anthropicKey, query);
-    sql = await generateSQL(anthropicKey, query);
+    intent = await classifyIntent(lovableKey, query);
+    sql = await generateSQL(lovableKey, query);
 
     const valid = validateSQL(sql);
     if (!valid.ok) throw new Error(`Could not generate safe query: ${valid.reason}`);
 
     result = await executeSQL(supabaseUrl, serviceKey, sql);
-    const formatted = await formatAnswer(anthropicKey, query, result);
+    const formatted = await formatAnswer(lovableKey, query, result);
     success = true;
 
     const elapsed = Date.now() - startedAt;
