@@ -245,7 +245,7 @@ serve(async (req) => {
   const startedAt = Date.now();
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-  const anthropicKey = Deno.env.get("ANTHROPIC_API_KEY"); // ← key name updated
+  const lovableKey = Deno.env.get("LOVABLE_API_KEY");
 
   let query = "";
   let userId: string | null = null;
