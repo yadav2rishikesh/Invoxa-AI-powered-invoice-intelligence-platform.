@@ -1,7 +1,7 @@
 // Supabase Edge Function: ai-financial-query
-// Deploy: supabase functions deploy ai-financial-query
+// Uses Lovable AI Gateway (LOVABLE_API_KEY auto-injected)
 // Required secrets in Supabase dashboard:
-//   - ANTHROPIC_API_KEY          ← changed from DEEPSEEK_API_KEY
+//   - LOVABLE_API_KEY (auto)
 //   - SUPABASE_URL (auto)
 //   - SUPABASE_SERVICE_ROLE_KEY (auto)
 
@@ -15,10 +15,9 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-// ─── Anthropic config  ───────────
-const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
-const ANTHROPIC_VERSION = "2023-06-01";
-const MODEL = "claude-sonnet-4-20250514"; 
+// ─── Lovable AI Gateway config ───────────
+const AI_GATEWAY_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
+const MODEL = "google/gemini-3-flash-preview";
 // ────────────────────────────────────────────────────────────────────────────
 
 const SCHEMA_CONTEXT = `DATABASE SCHEMA:
